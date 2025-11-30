@@ -1,19 +1,57 @@
 import { useState, useRef } from "react";
-import { Upload, X, Loader2 } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
+import Alert from "../components/Alert";
+import UploadSlider from "../components/UploadSlider";
+import uploadService from "../services/uploadService";
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState<Boolean>(false);
   const [isLoading, setIsLoading] = useState<Boolean>(false);
+  const [alert, setAlert] = useState<React.ComponentProps<typeof Alert> | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<Number>(0);
+  const [response, setResponse] = useState<Awaited<ReturnType<typeof uploadService>> | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFiles = (files: FileList | null) => {
+  const allowedExtensions = ["jpg", "jpeg", "png", "zip", "rar", "7z","tar", "gz", "tgz"];  
+
+  const updateFiles = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index) )
+  }
+
+  const handleFiles = async (files: FileList | null) => {
     if(files){      
-      const arr = Array.from(files);      
-      setFiles((prev) => [...prev, ...arr]);      
+      const arr = Array.from(files); 
+      let validfiles:File[] = []
+      arr.forEach(x => {        
+        let ext: string = x.name.split(".").at(-1) ?? ""
+        if(!allowedExtensions.includes(ext)){
+          setAlert({
+            title: 'Invaild format!!',
+            message: "Some uploaded files seems to be on invalid format, It will be skipped automatically.", 
+            action: "failure", 
+            onClose: () => setAlert(null)}
+          )
+        } else {
+          validfiles.push(x)
+        }
+      })     
+      setFiles((prev) => [...prev, ...validfiles]);      
     }
   };
+
+  const uploadFiles = async () => {
+    try {
+      const data = await uploadService(files, (percent: number) => {
+        setUploadProgress(percent);
+      });
+
+      setResponse(data); 
+    } catch (err) {      
+      console.error(err);
+    }
+  }
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -21,8 +59,9 @@ export default function Home() {
     handleFiles(e.dataTransfer.files);
   };
 
-  return (
+  return (    
     <div className="min-h-screen bg-gray-50 flex flex-col">      
+      { alert && <Alert {...alert}/>}
       <header className="w-full bg-white shadow-sm py-4 px-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">FaceSort AI</h1>     
       </header>
@@ -68,32 +107,13 @@ export default function Home() {
         </div>
         
         {files.length > 0 && (
-          <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {files.map((file, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt="preview"
-                  className="w-full h-32 object-cover rounded-xl border"
-                />
-                <button
-                  onClick={() =>
-                    setFiles((prev) => prev.filter((_, i) => i !== index))
-                  }
-                  className="absolute top-1 right-1 bg-white rounded-full p-1 shadow opacity-0 
-                  group-hover:opacity-100 transition"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+          <UploadSlider onRemove={updateFiles} files={files} />          
         )}
         
         {files.length > 0 && (
           <div className="flex gap-4 mt-8">
             <button
-              onClick={() => setIsLoading(true)}
+              onClick={() => uploadFiles()}
               className="bg-blue-600 text-white px-6 py-3 rounded-xl text-lg font-medium 
               hover:bg-blue-700 transition shadow"
             >
