@@ -1,20 +1,23 @@
 import { useState, useRef } from "react";
 import { Upload, Loader2 } from "lucide-react";
 import Alert from "../components/Alert";
-import UploadSlider from "../components/UploadSlider";
+import UploadsBox from "../components/UploadsBox";
 import uploadService from "../services/uploadService";
+import Modal from "../components/Modal";
+import { extractZip } from "../utils/unzip";
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState<Boolean>(false);
   const [isLoading, setIsLoading] = useState<Boolean>(false);
   const [alert, setAlert] = useState<React.ComponentProps<typeof Alert> | null>(null)
+  const [modal, setModal] = useState<React.ComponentProps<typeof Modal> | null>(null)
   const [uploadProgress, setUploadProgress] = useState<Number>(0);
   const [response, setResponse] = useState<Awaited<ReturnType<typeof uploadService>> | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const allowedExtensions = ["jpg", "jpeg", "png", "zip", "rar", "7z","tar", "gz", "tgz"];  
+  const allowedExtensions = ["jpg", "jpeg", "png", "zip"];  
 
   const updateFiles = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index) )
@@ -24,20 +27,31 @@ export default function Home() {
     if(files){      
       const arr = Array.from(files); 
       let validfiles:File[] = []
-      arr.forEach(x => {        
+      let hasInvalidFiles = false
+      for (const x of arr) {       
         let ext: string = x.name.split(".").at(-1) ?? ""
-        if(!allowedExtensions.includes(ext)){
-          setAlert({
-            title: 'Invaild format!!',
-            message: "Some uploaded files seems to be on invalid format, It will be skipped automatically.", 
-            action: "failure", 
-            onClose: () => setAlert(null)}
-          )
-        } else {
-          validfiles.push(x)
+        if(!allowedExtensions.includes(ext)) hasInvalidFiles = true          
+        else {
+            if(ext != 'zip') validfiles.push(x)
+            else {
+              let result = await extractZip(x)   
+              console.log(result)           
+              result['images'].forEach((x: File) => {                
+                validfiles.push(x)
+              })
+              if(result['hasInvalidFiles']) hasInvalidFiles = true
+            }
         }
-      })     
-      setFiles((prev) => [...prev, ...validfiles]);      
+      }     
+      if(hasInvalidFiles){
+        setAlert({
+          title: 'Invaild format!!',
+          message: "Some uploaded files seems to be on invalid format, It has been skipped automatically.", 
+          action: "failure", 
+          onClose: () => setAlert(null)}
+        )
+      }      
+      setFiles((prev) => [...prev, ...validfiles]);           
     }
   };
 
@@ -62,6 +76,7 @@ export default function Home() {
   return (    
     <div className="min-h-screen bg-gray-50 flex flex-col">      
       { alert && <Alert {...alert}/>}
+      { modal && <Modal {...modal}/> }
       <header className="w-full bg-white shadow-sm py-4 px-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">FaceSort AI</h1>     
       </header>
@@ -92,7 +107,7 @@ export default function Home() {
             type="file"
             ref={fileInputRef}
             multiple
-            accept="image/*,.zip,.rar,.7z,.tar,.gz,.tgz"
+            accept="image/*,.zip"
             className="hidden"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
           />
@@ -101,13 +116,13 @@ export default function Home() {
             <Upload size={48} className="text-gray-500 mb-3" />
             <p className="font-medium text-lg text-center">Drag & Drop Images or Archives Here</p>
             <p className="text-gray-500 text-sm mt-1 text-center">
-              or click to browse — supports JPG, PNG, .zip, .rar, .7z, .tar, .gz, .tgz
+              or click to browse — supports JPG, PNG, .zip
             </p>
           </div>
         </div>
         
         {files.length > 0 && (
-          <UploadSlider onRemove={updateFiles} files={files} />          
+          <UploadsBox onRemove={updateFiles} files={files} />          
         )}
         
         {files.length > 0 && (
