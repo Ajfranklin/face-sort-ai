@@ -17,7 +17,7 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const allowedExtensions = ["jpg", "jpeg", "png", "zip"];  
+  const allowedExtensions = ["jpg", "jpeg", "png", "zip", "7z", "rar"];  
 
   const updateFiles = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index) )
@@ -30,18 +30,8 @@ export default function Home() {
       let hasInvalidFiles = false
       for (const x of arr) {       
         let ext: string = x.name.split(".").at(-1) ?? ""
-        if(!allowedExtensions.includes(ext)) hasInvalidFiles = true          
-        else {
-            if(ext != 'zip') validfiles.push(x)
-            else {
-              let result = await extractZip(x)   
-              console.log(result)           
-              result['images'].forEach((x: File) => {                
-                validfiles.push(x)
-              })
-              if(result['hasInvalidFiles']) hasInvalidFiles = true
-            }
-        }
+        if(allowedExtensions.includes(ext)) validfiles.push(x)
+        else hasInvalidFiles = true                  
       }     
       if(hasInvalidFiles){
         setAlert({
@@ -107,7 +97,7 @@ export default function Home() {
             type="file"
             ref={fileInputRef}
             multiple
-            accept="image/*,.zip"
+            accept="image/*,.zip,.7z,.rar"
             className="hidden"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
           />
